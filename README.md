@@ -1,4 +1,4 @@
-# Zypper Temp (version: 0.1.0)</br>
+# Zypper Temp (version: 0.1.0 alpha)</br>
 <pre>Temporary installation of packages using zypper package manager.
 Usage:
     ZypperTemp.py install cache packages
