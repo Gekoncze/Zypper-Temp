@@ -14,8 +14,11 @@ import subprocess
 
 class Info:
     name = "Zypper Temp"
-    version = "0.1.0"
-    description = "Temporary installation of packages using zypper package manager."
+    version = "0.1.0 alpha"
+    description = (
+        "Temporary installation of packages using zypper package manager."
+        "IMPORTANT NOTE: Carefully check installed and removed packages list. Sometimes new packages get glued to the system somehow (WTF????), wiping out the whole system by dependencies."
+    )
     usage = (
         "Usage:\n"
         "    ZypperTemp.py install <dst cache file name> <package names>\n"
@@ -105,6 +108,7 @@ def installPackages(packages):
     
 def removePackages(packages):
     cmd = "sudo zypper remove " + packages
+    print(cmd)
     runForExecution(cmd)
     
 def diffPackages(oldPackages, newPackages):
@@ -194,11 +198,4 @@ if options.remove == True:
             removePackages(" ".join(packages))
         except:
             print("Error: Could not remove packages.")
-            raise
-        
-        print("Clearing cache file...")
-        try:
-            clearPackagesFile(cache)
-        except:
-            print("Error: Could not clear cache file. Clear it manually.")
             raise
