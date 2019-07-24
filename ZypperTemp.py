@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 
-# IMPORTS BELONG HERE:
+# IMPORTS
 
 import os
 import sys
@@ -10,25 +10,28 @@ import itertools
 import subprocess
 
 
-# DEFINITIONS BELONG HERE:
+# CLASSES
 
 class Info:
     name = "Zypper Temp"
-    version = "0.1.0 alpha"
+    version = "0.2.0"
     description = (
-        "Temporary installation of packages using zypper package manager."
-        "IMPORTANT NOTE: Carefully check installed and removed packages list. Sometimes new packages get glued to the system somehow (WTF????), wiping out the whole system by dependencies."
+        "Temporary installation of packages using zypper and rpm.\n"
     )
     usage = (
         "Usage:\n"
-        "    ZypperTemp.py install <dst cache file name> <package names>\n"
-        "    ZypperTemp.py remove <src cache file name>"
+        "    ZypperTemp.py <install or remove> <dst cache file name> <package names>\n"
+    )
+    examples = (
+        "Examples:\n"
+        "    ZypperTemp.py install cache gcc make\n"
+        "    ZypperTemp.py remove cache\n"
     )
     options = (
         "Options:\n"
         "    -h --help      displays this help message\n"
-        "    install        installs given packages, saving list of all installed packages into a cache file\n"
-        "    remove         removes packages loaded from a list from a cache file\n"
+        "    install        installs given packages, saving the list of all new packages into a cache file\n"
+        "    remove         removes packages from a list loaded from a cache file\n"
     )
 
 class Options:
@@ -36,13 +39,15 @@ class Options:
     install = False
     remove = False
 
-def printHelp(message = None):
-    if(message is not None): print(message)
+
+# FUNCTIONS
+
+def printHelp():
     print(info.name + " (version: " + info.version + ")")
     print(info.description)
     print(info.usage)
+    print(info.examples)
     print(info.options)
-    sys.exit("")
     
 def parseLines(text):
     return list(filter(None, text.split("\n")))
@@ -93,13 +98,14 @@ def getPackages():
     return names
     
 def installedPackages():
-    cmd = "rpm -qa --last"
+    cmd = "RpmQuery.py -sn -m"
     output = runForOutput(cmd)
     lines = parseLines(output)
     packages = list()
     for line in lines:
         tokens = parseTokens(line)
-        packages.insert(0, tokens[0])
+        if tokens[0] != "gpg-pubkey":
+            packages.insert(0, tokens[0])
     return packages
         
 def installPackages(packages):
@@ -107,25 +113,24 @@ def installPackages(packages):
     runForExecution(cmd)
     
 def removePackages(packages):
-    cmd = "sudo zypper remove " + packages
+    cmd = "sudo rpm --erase --nodeps " + packages
     print(cmd)
     runForExecution(cmd)
     
 def diffPackages(oldPackages, newPackages):
-    lastOldPackage = oldPackages[-1]
-    searching = True
     diff = list()
-    for package in newPackages:
-        if searching == True:
-            if package == lastOldPackage:
-                searching = False
-        else:
-            diff.append(package)
-            
+    for np in newPackages:
+        isNew = True
+        for op in oldPackages:
+            if op == np:
+                isNew = False
+                break
+        if isNew:
+            diff.append(np)
     return diff
 
 
-# ACTUAL SCRIPT BELONG HERE:
+# SCRIPT
  
 os.environ["LANG"] = "en_US"  # requires english locale
 info = Info()
@@ -140,11 +145,13 @@ if len(sys.argv) >= 2:
     if arg == "remove":
         options.remove = True
 
-if options.info == True: printHelp("INFO: help == True")
-if len(sys.argv) <= 1: printHelp("ERROR: len(sys.argv) <= 1")
-if options.install == True and options.remove == True: printHelp("ERROR: install == True and remove == True")
-if options.install == False and options.remove == False: printHelp("ERROR: install == False and remove == False")
-if len(sys.argv) < 3: printHelp("ERROR: len(sys.argv) < 3")
+if options.info == True or len(sys.argv) <= 1:
+    printHelp()
+    sys.exit("")
+    
+if options.install == True and options.remove == True: raise Exception("ERROR: install == True and remove == True")
+if options.install == False and options.remove == False: raise Exception("ERROR: install == False and remove == False")
+if len(sys.argv) < 3: raise Exception("ERROR: len(sys.argv) < 3")
 
 if options.install == True:
     cache = getCache()
@@ -173,14 +180,16 @@ if options.install == True:
         raise
         
     diff = diffPackages(oldPackages, newPackages)
-    
-    print("Saving cache file...")
-    try:
-        savePackagesFile(cache, diff)
-    except:
-        print("Error: Could not save cache file '" + cache + "'.")
-        print("       Use 'rpm -qa --last' to find recently installed packages and remove them manually.")
-        raise
+    if len(diff) > 0:
+        print("Saving cache file...")
+        try:
+            savePackagesFile(cache, diff)
+        except:
+            print("Error: Could not save cache file '" + cache + "'.")
+            print("       Use 'rpm -qa --last' to find recently installed packages and remove them manually.")
+            raise
+    else:
+        print("Nothing to do.")
     
 if options.remove == True:
     cache = getCache()
@@ -193,9 +202,22 @@ if options.remove == True:
         raise
         
     print("Removing packages...")
-    if len(" ".join(packages).strip()) > 0:
-        try:
-            removePackages(" ".join(packages))
-        except:
-            print("Error: Could not remove packages.")
-            raise
+    packageNames = " ".join(packages)
+    if len(packageNames.strip()) > 0:
+        print("Following packages are going to be removed:")
+        print()
+        print(packageNames)
+        print()
+        decision = input("Continue? (y/n): ")
+        if decision == "y":
+            try:
+                removePackages(packageNames)
+            except:
+                print("Error: Could not remove packages.")
+                raise
+        elif decision == "n":
+            print("Canceled.")
+        else:
+            raise Exception("Unknown decision " + decision);
+    else:
+        print("Nothing to do.")
